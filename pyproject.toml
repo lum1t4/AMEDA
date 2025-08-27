@@ -1,0 +1,51 @@
+[project]
+name = "ameda"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = "~=3.11"
+dependencies = [
+    "cartopy>=0.24.1",
+    "cmocean>=4.0.3",
+    "copernicusmarine>=2.0.1",
+    "einops>=0.8.1",
+    "ipykernel>=6.29.5",
+    "ipywidgets>=8.1.7",
+    "matplotlib>=3.10.1",
+    "multidict==6.4.1",
+    "netcdf4>=1.7.2",
+    "numcodecs==0.15.1",
+    "numpy>=2.2.4",
+    "python-dotenv>=1.1.0",
+    "pyyaml>=6.0.2",
+    "scikit-learn>=1.6.1",
+    "torch>=2.6.0",
+    "torchvision>=0.21.0",
+    "tqdm>=4.67.1",
+    "transformers>=4.52.4",
+    "xarray>=2025.3.1",
+    "zarr>=2.18.5",
+    "scipy>=1.10.0",
+    "numba>=0.57.0",
+    "h5py>=3.8.0",
+    "click>=8.1.0",
+    "pyproj>=3.7.2",
+]
+
+
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.2.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ameda"]
