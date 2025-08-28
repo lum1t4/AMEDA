@@ -30,6 +30,10 @@ dependencies = [
     "h5py>=3.8.0",
     "click>=8.1.0",
     "pyproj>=3.7.2",
+    "scikit-image>=0.25.2",
+    "plotly>=6.3.0",
+    "pandas>=2.3.2",
+    "nbformat>=5.10.4",
 ]
 
 
