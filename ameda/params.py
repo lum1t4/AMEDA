@@ -1,11 +1,12 @@
-import os
+import math
+from dataclasses import dataclass
 from typing import Literal
+
 import numpy as np
 import xarray as xr
-from dataclasses import dataclass
-from ameda.rossby import read_rossby_region
-import math
 from scipy.interpolate import RegularGridInterpolator, griddata
+
+from ameda.rossby import read_rossby_region
 
 G = 9.8  # Gravity (m/s²)
 T = 24 * 3600  # Rotation period (seconds) in a sidereal day
@@ -153,45 +154,31 @@ class AMEDAParams:
     level: int = 1
     dps: int = 1
     nrt: int = 1
+    b: np.ndarray = None # shape: (LAT, LON) Half box size for LNAM calculation
+    bx: np.ndarray = None # shape: (LAT, LON) Half box size of streamline scan
+    Dx: np.ndarray = None # shape: (LAT, LON) grid horizontal spacing (km)
+    Rd: np.ndarray = None # shape: (LAT, LON) Rossby radius
+    gama: np.ndarray = None # shape: (LAT, LON) Rd resolution
+    Rb: np.ndarray = None # shape: (LAT, LON) Half box size for LNAM check
+    f: np.ndarray = None # shape: (LAT, LON) # Coriolis parameter
+    bi: np.ndarray = None # shape: (LAT * resol, LON * resol) interpolated grid of b
+    bxi: np.ndarray = None # shape: (LAT * resol, LON * resol) interpolated grid of bx
+    Dxi: np.ndarray = None # shape: (LAT * resol, LON * resol) interpolated grid of Dx
+    Rdi: np.ndarray = None # shape: (LAT * resol, LON * resol) interpolated grid of Rd
+    gamai: np.ndarray = None # shape: (LAT * resol, LON * resol) interpolated grid of gama
+    fi: np.ndarray = None # shape: (LAT * resol, LON * resol) interpolated grid of f
 
 
-class AMEDADerivedParams:
-    b: np.ndarray # shape: (LAT, LON) Half box size for LNAM calculation
-    bx: np.ndarray # shape: (LAT, LON) Half box size of streamline scan
-    Dx: np.ndarray # shape: (LAT, LON) grid horizontal spacing (km)
-    Rd: np.ndarray # shape: (LAT, LON) Rossby radius
-    gama: np.ndarray # shape: (LAT, LON) Rd resolution
-    Rb: np.ndarray # shape: (LAT, LON) Half box size for LNAM check
-    f: np.ndarray # shape: (LAT, LON) # Coriolis parameter
-    bi: np.ndarray # shape: (LAT * resol, LON * resol) interpolated grid of b
-    bxi: np.ndarray # shape: (LAT * resol, LON * resol) interpolated grid of bx
-    Dxi: np.ndarray # shape: (LAT * resol, LON * resol) interpolated grid of Dx
-    Rdi: np.ndarray # shape: (LAT * resol, LON * resol) interpolated grid of Rd
-    gamai: np.ndarray # shape: (LAT * resol, LON * resol) interpolated grid of gama
-    fi: np.ndarray # shape: (LAT * resol, LON * resol) interpolated grid of f
-
-    def __init__(self, b, bx, Dx, Rd, gama, Rb, bi, bxi, Dxi, Rdi, gamai, f, fi):
-        self.b = b
-        self.bx = bx
-        self.Dx = Dx
-        self.Rd = Rd
-        self.gama = gama
-        self.Rb = Rb
-        self.bi = bi
-        self.bxi = bxi
-        self.Dxi = Dxi
-        self.Rdi = Rdi
-        self.gamai = gamai
-        self.f = f
-        self.fi = fi
+def derive_params(dataset: xr.Dataset, step: int, params: AMEDAParams) -> AMEDAParams:
+    data_step = dataset.isel(time=step)
+    lon = data_step[params.x_name].values
+    lat = data_step[params.y_name].values
+    ugos = data_step[params.u_name].values
 
 
-
-
-def compute_derived_params(lon, lat, mask, ugos, vgos, params: AMEDAParams) -> AMEDADerivedParams:
     Rd = read_rossby_region(lon.min(), lon.max(), lat.min(), lat.max(), lon[1] - lon[0])
-    lon0 = np.copy(lon)
-    lat0 = np.copy(lat)
+    lon0 = np.array(lon)
+    lat0 = np.array(lat)
     lon0, lat0 = np.meshgrid(lon0, lat0)
     mask0 = ~np.isnan(ugos)
 
@@ -293,35 +280,47 @@ def compute_derived_params(lon, lat, mask, ugos, vgos, params: AMEDAParams) -> A
 
         gamai = Rdi / Dxi
 
-    return AMEDADerivedParams(
-        b=b,
-        bx=bx,
-        Dx=Dx,
-        Rd=Rd,
-        gama=gama,
-        Rb=Rb,
-        bi=bi,
-        bxi=bxi,
-        Dxi=Dxi,
-        Rdi=Rdi,
-        gamai=gamai,
-        f=f,
-        fi=f_i
-    )
+    params.b = b
+    params.bx = bx
+    params.Dx = Dx
+    params.Rd = Rd
+    params.gama = gama
+    params.Rb = Rb
+    params.bi = bi
+    params.bxi = bxi
+    params.Dxi = Dxi
+    params.Rdi = Rdi
+    params.gamai = gamai
+    params.f = f
+    params.fi = f_i
 
+    return params
 
 
 if __name__ == "__main__":
     DATASET = "/Users/gianlucacalo/Desktop/projects/ocean_surface_levels/data/raw/cmems_obs-sl_eur_phy-ssh_my_allsat-l4-duacs-0.0625deg_P1D.nc"
     ds = xr.open_dataset(DATASET)
-    step = ds.isel(time=0)
-    ugos = step.ugos
-    vgos = step.vgos
-    mask = ~np.isnan(ugos)
-    lat = step.latitude
-    lon = step.longitude
-    sla = step.sla
-    params = AMEDAParams()
-    dparams = compute_derived_params(lon, lat, mask, ugos, vgos, params)
-    print(dparams)
 
+    params = AMEDAParams(
+        x_name="longitude",
+        y_name="latitude",
+        u_name="ugos",
+        v_name="vgos",
+        s_name="sla"
+    )
+    params = derive_params(ds, 0, params)
+    ds.close()
+
+    print(f"params.b: {params.b.shape}")
+    print(f"params.bx: {params.bx.shape}")
+    print(f"params.Dx: {params.Dx.shape}")
+    print(f"params.Rd: {params.Rd.shape}")
+    print(f"params.gama: {params.gama.shape}")
+    print(f"params.Rb: {params.Rb.shape}")
+    print(f"params.bi: {params.bi.shape}")
+    print(f"params.bxi: {params.bxi.shape}")
+    print(f"params.Dxi: {params.Dxi.shape}")
+    print(f"params.Rdi: {params.Rdi.shape}")
+    print(f"params.gamai: {params.gamai.shape}")
+    print(f"params.f: {params.f.shape}")
+    print(f"params.fi: {params.fi.shape}")
